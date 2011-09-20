@@ -44,6 +44,7 @@ import netaddr
 import os
 import random
 import re
+import select
 import shutil
 import sys
 import tempfile
@@ -52,6 +53,7 @@ import uuid
 from xml.dom import minidom
 from xml.etree import ElementTree
 
+import eventlet
 from eventlet import greenthread
 from eventlet import tpool
 
@@ -168,6 +170,54 @@ def _late_load_cheetah():
 
 def _get_eph_disk(ephemeral):
     return 'disk.eph' + str(ephemeral['num'])
+
+
+class ConsoleLogger(object):
+
+    def __init__(self, fifo_path, ringbuffer_path):
+        self.fifo_path = fifo_path
+        self.fd = None
+        self.data_queue = eventlet.queue.LightQueue(0)
+        self.ringbuffer = utils.RingBuffer(ringbuffer_path)
+        self.reader_thread = eventlet.spawn(self._reader_thread_func)
+        self.writer_thread = eventlet.spawn(self._writer_thread_func)
+
+    def _reopen(self):
+        if self.fd is not None:
+            os.close(self.fd)
+        self.fd = os.open(self.fifo_path, os.O_RDONLY | os.O_NONBLOCK)
+
+    def _reader_thread_func(self):
+        self._reopen()
+        while True:
+            select.select([self.fd], [], [])
+            data = os.read(self.fd, 1024)
+            if data:
+                self.data_queue.put(data)
+            else:
+                self._reopen()
+
+    def _writer_thread_func(self):
+        try:
+            data = self.data_queue.get()
+            while data:
+                self.ringbuffer.write(data)
+                data = self.data_queue.get()
+        finally:
+            self.ringbuffer.close()
+
+    def close(self):
+        self.reader_thread.kill()
+        self.data_queue.put(None)
+        try:
+            self.writer_thread.wait()
+        except eventlet.greenlet.GreenletExit:
+            pass
+        if self.fd is not None:
+            os.close(self.fd)
+
+    def peek(self):
+        return self.ringbuffer.peek()
 
 
 class LibvirtConnection(driver.ComputeDriver):
