@@ -237,6 +237,8 @@ class LibvirtConnection(driver.ComputeDriver):
         self.firewall_driver = fw_class(get_connection=self._get_connection)
         self.vif_driver = utils.import_object(FLAGS.libvirt_vif_driver)
 
+        self.console_loggers = dict()
+
     def init_host(self, host):
         # NOTE(nsokolov): moved instance restarting to ComputeManager
         pass
@@ -280,6 +282,15 @@ class LibvirtConnection(driver.ComputeDriver):
             return libvirt.openReadOnly(uri)
         else:
             return libvirt.openAuth(uri, auth, 0)
+
+    def _start_console_logger(self, name, fifo_path, ringbuffer_path):
+        self._stop_console_logger(name)
+        self.console_loggers[name] = ConsoleLogger(fifo_path, ringbuffer_path)
+
+    def _stop_console_logger(self, name):
+        if name in self.console_loggers:
+            self.console_loggers[name].close()
+            del self.console_loggers[name]
 
     def list_instances(self):
         return [self._conn.lookupByID(x).name()
