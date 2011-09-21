@@ -241,7 +241,11 @@ class LibvirtConnection(driver.ComputeDriver):
 
     def init_host(self, host):
         # NOTE(nsokolov): moved instance restarting to ComputeManager
-        pass
+        for name in self.list_instances():
+            base_path = os.path.join(FLAGS.instances_path, name)
+            fifo_path = os.path.join(base_path, 'console.fifo.out')
+            ringbuffer_path = os.path.join(base_path, 'console.ring')
+            self._start_console_logger(name, fifo_path, ringbuffer_path)
 
     def _get_connection(self):
         if not self._wrapped_conn or not self._test_connection():
@@ -396,6 +400,7 @@ class LibvirtConnection(driver.ComputeDriver):
     def _cleanup(self, instance):
         target = os.path.join(FLAGS.instances_path, instance['name'])
         instance_name = instance['name']
+        self._stop_console_logger(instance_name)
         LOG.info(_('instance %(instance_name)s: deleting instance files'
                 ' %(target)s') % locals())
         if FLAGS.libvirt_type == 'lxc':
@@ -883,8 +888,9 @@ class LibvirtConnection(driver.ComputeDriver):
             container_dir = '%s/rootfs' % basepath(suffix='')
             utils.execute('mkdir', '-p', container_dir)
 
-        # NOTE(vish): No need add the suffix to console.fifo
+        # NOTE(vish): No need add the suffix
         console_fifo = basepath('console.fifo', '')
+        console_ring = basepath('console.ring', '')
         try:
             console_fifo_stat = os.stat(console_fifo)
         except OSError, e:
@@ -895,6 +901,9 @@ class LibvirtConnection(driver.ComputeDriver):
         else:
             utils.execute('chown', os.getuid(), console_fifo,
                           run_as_root=True)
+        self._start_console_logger(inst['name'],
+                                   console_fifo,
+                                   console_ring)
 
         if not disk_images:
             disk_images = {'image_id': inst['image_ref'],
