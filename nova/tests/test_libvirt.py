@@ -493,7 +493,7 @@ class LibvirtConnTestCase(test.TestCase):
             (lambda t: _ipv4_like(t.findall(parameter)[1].get('value'),
                                   '192.168.*.1'), True),
             (lambda t: t.find('./devices/serial/source').get(
-                'path').split('/')[1], 'console.log'),
+                'path').split('/')[1], 'console.fifo'),
             (lambda t: t.find('./memory').text, '2097152')]
         if rescue:
             common_checks += [

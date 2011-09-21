@@ -37,6 +37,7 @@ Supports KVM, LXC, QEMU, UML, and XEN.
 
 """
 
+import errno
 import hashlib
 import functools
 import multiprocessing
@@ -46,6 +47,7 @@ import random
 import re
 import select
 import shutil
+import stat
 import sys
 import tempfile
 import time
@@ -872,11 +874,18 @@ class LibvirtConnection(driver.ComputeDriver):
             container_dir = '%s/rootfs' % basepath(suffix='')
             utils.execute('mkdir', '-p', container_dir)
 
-        # NOTE(vish): No need add the suffix to console.log
-        console_log = basepath('console.log', '')
-        if os.path.exists(console_log):
-            utils.execute('chown', os.getuid(), console_log, run_as_root=True)
-        os.close(os.open(console_log, os.O_CREAT | os.O_WRONLY, 0660))
+        # NOTE(vish): No need add the suffix to console.fifo
+        console_fifo = basepath('console.fifo', '')
+        try:
+            console_fifo_stat = os.stat(console_fifo)
+        except OSError, e:
+            if e.errno == errno.ENOENT:
+                os.mkfifo(console_fifo, 0660)
+            else:
+                raise
+        else:
+            utils.execute('chown', os.getuid(), console_fifo,
+                          run_as_root=True)
 
         if not disk_images:
             disk_images = {'image_id': inst['image_ref'],
