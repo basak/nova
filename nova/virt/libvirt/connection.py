@@ -721,24 +721,22 @@ class LibvirtConnection(driver.ComputeDriver):
 
     @exception.wrap_exception()
     def get_console_output(self, instance):
-        console_log = os.path.join(FLAGS.instances_path, instance['name'],
-                                   'console.log')
+        console_fifo = os.path.join(FLAGS.instances_path, instance['name'],
+                                   'console.fifo')
 
-        utils.execute('chown', os.getuid(), console_log, run_as_root=True)
+        utils.execute('chown', os.getuid(), console_fifo, run_as_root=True)
 
         if FLAGS.libvirt_type == 'xen':
             # Xen is special
             virsh_output = utils.execute('virsh', 'ttyconsole',
                                          instance['name'])
             data = self._flush_xen_console(virsh_output)
-            fpath = self._append_to_file(data, console_log)
+            self._append_to_file(data, console_fifo)
         elif FLAGS.libvirt_type == 'lxc':
             # LXC is also special
             LOG.info(_("Unable to read LXC console"))
-        else:
-            fpath = console_log
 
-        return self._dump_file(fpath)
+        return self.console_loggers[instance['name']].peek()
 
     @exception.wrap_exception()
     def get_ajax_console(self, instance):
