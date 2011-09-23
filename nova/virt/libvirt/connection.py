@@ -727,7 +727,7 @@ class LibvirtConnection(driver.ComputeDriver):
     @exception.wrap_exception()
     def get_console_output(self, instance):
         console_fifo = os.path.join(FLAGS.instances_path, instance['name'],
-                                   'console.fifo')
+                                   'console.fifo.out')
 
         utils.execute('chown', os.getuid(), console_fifo, run_as_root=True)
 
@@ -891,18 +891,21 @@ class LibvirtConnection(driver.ComputeDriver):
         # NOTE(vish): No need add the suffix
         console_fifo = basepath('console.fifo', '')
         console_ring = basepath('console.ring', '')
-        try:
-            console_fifo_stat = os.stat(console_fifo)
-        except OSError, e:
-            if e.errno == errno.ENOENT:
-                os.mkfifo(console_fifo, 0660)
+
+        for fifo_suffix in ['.in', '.out']:
+            console_fifo_suffix = console_fifo + fifo_suffix
+            try:
+                console_fifo_stat = os.stat(console_fifo_suffix)
+            except OSError, e:
+                if e.errno == errno.ENOENT:
+                    os.mkfifo(console_fifo_suffix, 0660)
+                else:
+                    raise
             else:
-                raise
-        else:
-            utils.execute('chown', os.getuid(), console_fifo,
-                          run_as_root=True)
+                utils.execute('chown', os.getuid(), console_fifo,
+                              run_as_root=True)
         self._start_console_logger(inst['name'],
-                                   console_fifo,
+                                   console_fifo + '.out',
                                    console_ring)
 
         if not disk_images:

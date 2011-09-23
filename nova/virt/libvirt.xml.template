@@ -153,7 +153,7 @@
 
 #end for
         <!-- The order is significant here.  File must be defined first -->
-        <serial type="file">
+        <serial type="pipe">
             <source path='${basepath}/console.fifo'/>
             <target port='1'/>
         </serial>
