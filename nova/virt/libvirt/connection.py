@@ -145,6 +145,8 @@ flags.DEFINE_string('default_local_format',
 flags.DEFINE_bool('libvirt_use_virtio_for_bridges',
                   False,
                   'Use virtio for bridge interfaces')
+flags.DEFINE_integer('libvirt_console_log_size', 2 ** 16,
+                     'libvirt console log ringbuffer size')
 
 
 def get_connection(read_only):
@@ -180,7 +182,8 @@ class ConsoleLogger(object):
         self.fifo_path = fifo_path
         self.fd = None
         self.data_queue = eventlet.queue.LightQueue(0)
-        self.ringbuffer = utils.RingBuffer(ringbuffer_path)
+        self.ringbuffer = utils.RingBuffer(ringbuffer_path,
+                                           FLAGS.libvirt_console_log_size)
         self.reader_thread = eventlet.spawn(self._reader_thread_func)
         self.writer_thread = eventlet.spawn(self._writer_thread_func)
 
